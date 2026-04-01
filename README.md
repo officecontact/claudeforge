@@ -5,7 +5,7 @@
 **Zero dependencies. Failproof. 31/31 tests passing.**
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/claudeforge.git
+git clone https://github.com/officecontact/claudeforge.git
 cd your-project && bash /path/to/claudeforge/install.sh
 ```
 
@@ -49,7 +49,7 @@ ClaudeForge installs into your project .claude/ directory. Pure markdown + bash.
 ## Quick Start
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/claudeforge.git ~/claudeforge
+git clone https://github.com/officecontact/claudeforge.git ~/claudeforge
 cd /path/to/your/project
 bash ~/claudeforge/install.sh
 # Then in Claude Code: /init-project
