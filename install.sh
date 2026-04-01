@@ -127,7 +127,7 @@ try: d=json.load(open(p))
 except json.JSONDecodeError: print('INVALID_JSON');sys.exit(0)
 except: d={}
 nenv={'MAX_THINKING_TOKENS':'10000','CLAUDE_AUTOCOMPACT_PCT_OVERRIDE':'50','CLAUDE_CODE_SUBAGENT_MODEL':'haiku','DISABLE_NON_ESSENTIAL_MODEL_CALLS':'1'}
-nhooks={'PreCompact':[{'type':'command','command':'bash .claude/hooks/pre-compact.sh'}],'SessionStart':[{'type':'command','command':'bash .claude/hooks/session-start.sh'}],'PostCompact':[{'type':'command','command':'bash .claude/hooks/post-compact.sh'}]}
+nhooks={'PreCompact':[{'matcher':'','hooks':[{'type':'command','command':'bash .claude/hooks/pre-compact.sh'}]}],'SessionStart':[{'matcher':'','hooks':[{'type':'command','command':'bash .claude/hooks/session-start.sh'}]}],'PostCompact':[{'matcher':'','hooks':[{'type':'command','command':'bash .claude/hooks/post-compact.sh'}]}]}
 d.setdefault('env',{});d.setdefault('hooks',{})
 a=[]
 for k,v in nenv.items():
@@ -135,9 +135,9 @@ for k,v in nenv.items():
 for ev,hs in nhooks.items():
  if ev not in d['hooks']:d['hooks'][ev]=hs;a.append('hook:'+ev)
  else:
-  cs=[h.get('command','') for h in d['hooks'][ev]]
-  for h in hs:
-   if h['command'] not in cs:d['hooks'][ev].append(h);a.append('hook:'+ev)
+  existing_str=json.dumps(d['hooks'][ev])
+  if 'pre-compact' not in existing_str and 'claudeforge' not in existing_str:
+   d['hooks'][ev].extend(hs);a.append('hook:'+ev)
 if 'model' not in d:d['model']='sonnet';a.append('model')
 json.dump(d,open(p,'w'),indent=2)
 print('MERGED:'+','.join(a) if a else 'NONE')
@@ -159,8 +159,8 @@ if(!d.env)d.env={};if(!d.hooks)d.hooks={};
 const a=[];
 const nenv={MAX_THINKING_TOKENS:'10000',CLAUDE_AUTOCOMPACT_PCT_OVERRIDE:'50',CLAUDE_CODE_SUBAGENT_MODEL:'haiku',DISABLE_NON_ESSENTIAL_MODEL_CALLS:'1'};
 for(const[k,v]of Object.entries(nenv)){if(!(k in d.env)){d.env[k]=v;a.push(k)}}
-const nhooks={PreCompact:[{type:'command',command:'bash .claude/hooks/pre-compact.sh'}],SessionStart:[{type:'command',command:'bash .claude/hooks/session-start.sh'}],PostCompact:[{type:'command',command:'bash .claude/hooks/post-compact.sh'}]};
-for(const[ev,hs]of Object.entries(nhooks)){if(!(ev in d.hooks)){d.hooks[ev]=hs;a.push('hook:'+ev)}else{const cs=d.hooks[ev].map(h=>h.command);for(const h of hs){if(!cs.includes(h.command)){d.hooks[ev].push(h);a.push('hook:'+ev)}}}}
+const nhooks={PreCompact:[{matcher:'',hooks:[{type:'command',command:'bash .claude/hooks/pre-compact.sh'}]}],SessionStart:[{matcher:'',hooks:[{type:'command',command:'bash .claude/hooks/session-start.sh'}]}],PostCompact:[{matcher:'',hooks:[{type:'command',command:'bash .claude/hooks/post-compact.sh'}]}]};
+for(const[ev,hs]of Object.entries(nhooks)){if(!(ev in d.hooks)){d.hooks[ev]=hs;a.push('hook:'+ev)}else{const existing=JSON.stringify(d.hooks[ev]);const adding=JSON.stringify(hs);if(existing.indexOf('claudeforge')===-1&&existing.indexOf('pre-compact')===-1){d.hooks[ev]=d.hooks[ev].concat(hs);a.push('hook:'+ev)}}}
 if(!d.model){d.model='sonnet';a.push('model')}
 fs.writeFileSync('$DIR/settings.json',JSON.stringify(d,null,2));
 console.log(a.length?'MERGED:'+a.join(','):'NONE');
@@ -188,8 +188,8 @@ console.log(a.length?'MERGED:'+a.join(','):'NONE');
         done
         # Add hooks block if not present
         if ! grep -q "hooks" "$DIR/settings.json" 2>/dev/null; then
-            # Insert hooks before the final closing brace
-            sed -i '$ s/}/,\n  "hooks": {\n    "PreCompact": [{"type":"command","command":"bash .claude\/hooks\/pre-compact.sh"}],\n    "SessionStart": [{"type":"command","command":"bash .claude\/hooks\/session-start.sh"}],\n    "PostCompact": [{"type":"command","command":"bash .claude\/hooks\/post-compact.sh"}]\n  }\n}/' "$DIR/settings.json" 2>/dev/null
+            # Insert hooks with correct matcher+hooks array format
+            sed -i '$ s/}/,\n  "hooks": {\n    "PreCompact": [{"matcher":"","hooks":[{"type":"command","command":"bash .claude\/hooks\/pre-compact.sh"}]}],\n    "SessionStart": [{"matcher":"","hooks":[{"type":"command","command":"bash .claude\/hooks\/session-start.sh"}]}],\n    "PostCompact": [{"matcher":"","hooks":[{"type":"command","command":"bash .claude\/hooks\/post-compact.sh"}]}]\n  }\n}/' "$DIR/settings.json" 2>/dev/null
             added="$added hooks"
         fi
         if [ -n "$added" ]; then

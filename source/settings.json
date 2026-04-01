@@ -19,20 +19,35 @@
   "hooks": {
     "PreCompact": [
       {
-        "type": "command",
-        "command": "bash .claude/hooks/pre-compact.sh"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pre-compact.sh"
+          }
+        ]
       }
     ],
     "SessionStart": [
       {
-        "type": "command",
-        "command": "bash .claude/hooks/session-start.sh"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/session-start.sh"
+          }
+        ]
       }
     ],
     "PostCompact": [
       {
-        "type": "command",
-        "command": "bash .claude/hooks/post-compact.sh"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/post-compact.sh"
+          }
+        ]
       }
     ]
   }
