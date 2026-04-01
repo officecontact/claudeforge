@@ -92,7 +92,7 @@ echo -e "  ${G}Passed${NC}";echo ""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC=""
 for try in "$SCRIPT_DIR" "$SCRIPT_DIR/..";do
-[ -f "$try/.claude/settings.json" ]&&[ -d "$try/.claude/agents" ]&&SRC="$try"&&break
+[ -f "$try/source/settings.json" ]&&[ -d "$try/source/agents" ]&&SRC="$try"&&break
 done
 [ -z "$SRC" ]&&echo -e "${R}❌ Source not found. Run from claudeforge directory.${NC}"&&exit 1
 
@@ -141,19 +141,19 @@ print('MERGED:'+','.join(a) if a else 'NONE')
 " 2>&1)
 case "$result" in INVALID_JSON)warn "Invalid JSON — backed up, not modified";;NONE)skip "settings.json";;MERGED:*)merg "settings.json (${result#MERGED:})";;esac
 else warn "No python3 — add manually: MAX_THINKING_TOKENS=10000, CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=50, CLAUDE_CODE_SUBAGENT_MODEL=haiku";fi
-else $DRY||cp "$SRC/.claude/settings.json" "$DIR/settings.json";ok "settings.json";manifest_add "$DIR/settings.json";fi
+else $DRY||cp "$SRC/source/settings.json" "$DIR/settings.json";ok "settings.json";manifest_add "$DIR/settings.json";fi
 
 echo -e "${BOLD}🤖 Agents:${NC}"
-for f in "$SRC"/.claude/agents/*.md;do [ -f "$f" ]||continue;$DRY||safe_cp "$f" "$DIR/agents/$(basename "$f")" "$(basename "$f")";done
+for f in "$SRC"/source/agents/*.md;do [ -f "$f" ]||continue;$DRY||safe_cp "$f" "$DIR/agents/$(basename "$f")" "$(basename "$f")";done
 echo -e "${BOLD}📏 Rules:${NC}"
-for f in "$SRC"/.claude/rules/*.md;do [ -f "$f" ]||continue;$DRY||safe_cp "$f" "$DIR/rules/$(basename "$f")" "$(basename "$f")";done
+for f in "$SRC"/source/rules/*.md;do [ -f "$f" ]||continue;$DRY||safe_cp "$f" "$DIR/rules/$(basename "$f")" "$(basename "$f")";done
 echo -e "${BOLD}⚡ Commands:${NC}"
-for f in "$SRC"/.claude/commands/*.md;do [ -f "$f" ]||continue;$DRY||safe_cp "$f" "$DIR/commands/$(basename "$f")" "$(basename "$f")";done
+for f in "$SRC"/source/commands/*.md;do [ -f "$f" ]||continue;$DRY||safe_cp "$f" "$DIR/commands/$(basename "$f")" "$(basename "$f")";done
 echo -e "${BOLD}🔧 Skills:${NC}"
-for d in "$SRC"/.claude/skills/*/;do [ -d "$d" ]||continue;n=$(basename "$d");[ "$n" = "auto-installed" ]&&continue;$DRY||safe_cpdir "$d" "$DIR/skills/$n" "$n";done
+for d in "$SRC"/source/skills/*/;do [ -d "$d" ]||continue;n=$(basename "$d");[ "$n" = "auto-installed" ]&&continue;$DRY||safe_cpdir "$d" "$DIR/skills/$n" "$n";done
 mkdir -p "$DIR/skills/auto-installed" 2>/dev/null
 echo -e "${BOLD}🪝 Hooks:${NC}"
-for f in "$SRC"/.claude/hooks/*.sh; do
+for f in "$SRC"/source/hooks/*.sh; do
     [ -f "$f" ] || continue
     n=$(basename "$f")
     if [ ! -f "$DIR/hooks/$n" ]; then
@@ -192,7 +192,7 @@ fi
 echo -e "${BOLD}📂 Project files:${NC}"
 for f in preferences.md ARCHITECTURE.md CONVENTIONS.md PROMPT-CHEATSHEET.md;do $DRY||safe_cp "$SRC/docs/$f" "docs/$f" "docs/$f";done
 for f in current-task.md session-log.md handoff.md;do $DRY||safe_cp "$SRC/status/$f" "status/$f" "status/$f";done
-$DRY||safe_cp "$SRC/.claudeignore" ".claudeignore" ".claudeignore"
+$DRY||safe_cp "$SRC/claudeignore-template" ".claudeignore" ".claudeignore"
 $DRY||safe_cp "$SRC/CLAUDE.local.md" "CLAUDE.local.md" "CLAUDE.local.md"
 
 echo -e "${BOLD}📦 Registry:${NC}"

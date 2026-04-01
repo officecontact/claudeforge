@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+vendor/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Build outputs
+dist/
+build/
+.next/
+.nuxt/
+target/
+*.min.js
+*.min.css
+*.map
+
+# Lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Version control
+.git/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs and coverage
+*.log
+coverage/
+.nyc_output/
+
+# Binary files
+*.png
+*.jpg
+*.gif
+*.ico
+*.woff
+*.woff2
+*.mp4
+*.pdf
+*.zip
