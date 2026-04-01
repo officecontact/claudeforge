@@ -115,9 +115,12 @@ if ! $DRY; then
 fi
 
 echo -e "${BOLD}⚙️  Settings:${NC}"
-if [ -f "$DIR/settings.json" ];then
-if command -v python3 &>/dev/null;then
-result=$(python3 -c "
+if [ -f "$DIR/settings.json" ]; then
+    # Try python3 first (best merge), fall back to node, then pure bash
+    merge_done=false
+
+    if ! $merge_done && command -v python3 &>/dev/null; then
+        result=$(python3 -c "
 import json,sys
 p='$DIR/settings.json'
 try: d=json.load(open(p))
@@ -139,9 +142,69 @@ if 'model' not in d:d['model']='sonnet';a.append('model')
 json.dump(d,open(p,'w'),indent=2)
 print('MERGED:'+','.join(a) if a else 'NONE')
 " 2>&1)
-case "$result" in INVALID_JSON)warn "Invalid JSON — backed up, not modified";;NONE)skip "settings.json";;MERGED:*)merg "settings.json (${result#MERGED:})";;esac
-else warn "No python3 — add manually: MAX_THINKING_TOKENS=10000, CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=50, CLAUDE_CODE_SUBAGENT_MODEL=haiku";fi
-else $DRY||cp "$SRC/source/settings.json" "$DIR/settings.json";ok "settings.json";manifest_add "$DIR/settings.json";fi
+        case "$result" in
+            INVALID_JSON) warn "Invalid JSON — backed up, not modified" ;;
+            NONE) skip "settings.json" ;;
+            MERGED:*) merg "settings.json (${result#MERGED:})" ;;
+        esac
+        merge_done=true
+    fi
+
+    if ! $merge_done && command -v node &>/dev/null; then
+        result=$(node -e "
+const fs=require('fs');
+let d;
+try{d=JSON.parse(fs.readFileSync('$DIR/settings.json','utf8'))}catch(e){console.log('INVALID_JSON');process.exit(0)}
+if(!d.env)d.env={};if(!d.hooks)d.hooks={};
+const a=[];
+const nenv={MAX_THINKING_TOKENS:'10000',CLAUDE_AUTOCOMPACT_PCT_OVERRIDE:'50',CLAUDE_CODE_SUBAGENT_MODEL:'haiku',DISABLE_NON_ESSENTIAL_MODEL_CALLS:'1'};
+for(const[k,v]of Object.entries(nenv)){if(!(k in d.env)){d.env[k]=v;a.push(k)}}
+const nhooks={PreCompact:[{type:'command',command:'bash .claude/hooks/pre-compact.sh'}],SessionStart:[{type:'command',command:'bash .claude/hooks/session-start.sh'}],PostCompact:[{type:'command',command:'bash .claude/hooks/post-compact.sh'}]};
+for(const[ev,hs]of Object.entries(nhooks)){if(!(ev in d.hooks)){d.hooks[ev]=hs;a.push('hook:'+ev)}else{const cs=d.hooks[ev].map(h=>h.command);for(const h of hs){if(!cs.includes(h.command)){d.hooks[ev].push(h);a.push('hook:'+ev)}}}}
+if(!d.model){d.model='sonnet';a.push('model')}
+fs.writeFileSync('$DIR/settings.json',JSON.stringify(d,null,2));
+console.log(a.length?'MERGED:'+a.join(','):'NONE');
+" 2>&1)
+        case "$result" in
+            INVALID_JSON) warn "Invalid JSON — backed up, not modified" ;;
+            NONE) skip "settings.json" ;;
+            MERGED:*) merg "settings.json via node (${result#MERGED:})" ;;
+        esac
+        merge_done=true
+    fi
+
+    if ! $merge_done; then
+        # Pure bash fallback — can only add env vars, not merge hooks safely
+        # But this guarantees the core token optimizations are applied
+        added=""
+        for pair in "MAX_THINKING_TOKENS:10000" "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE:50" "CLAUDE_CODE_SUBAGENT_MODEL:haiku" "DISABLE_NON_ESSENTIAL_MODEL_CALLS:1"; do
+            key="${pair%%:*}"
+            val="${pair##*:}"
+            if ! grep -q "\"$key\"" "$DIR/settings.json" 2>/dev/null; then
+                # Insert before the last } in the env block
+                sed -i "s/\"env\": {/\"env\": {\n    \"$key\": \"$val\",/" "$DIR/settings.json" 2>/dev/null
+                added="$added $key"
+            fi
+        done
+        # Add hooks block if not present
+        if ! grep -q "hooks" "$DIR/settings.json" 2>/dev/null; then
+            # Insert hooks before the final closing brace
+            sed -i '$ s/}/,\n  "hooks": {\n    "PreCompact": [{"type":"command","command":"bash .claude\/hooks\/pre-compact.sh"}],\n    "SessionStart": [{"type":"command","command":"bash .claude\/hooks\/session-start.sh"}],\n    "PostCompact": [{"type":"command","command":"bash .claude\/hooks\/post-compact.sh"}]\n  }\n}/' "$DIR/settings.json" 2>/dev/null
+            added="$added hooks"
+        fi
+        if [ -n "$added" ]; then
+            merg "settings.json via bash ($added)"
+        else
+            skip "settings.json (already configured)"
+        fi
+    fi
+else
+    if ! $DRY; then
+        cp "$SRC/source/settings.json" "$DIR/settings.json"
+    fi
+    ok "settings.json"
+    manifest_add "$DIR/settings.json"
+fi
 
 echo -e "${BOLD}🤖 Agents:${NC}"
 for f in "$SRC"/source/agents/*.md;do [ -f "$f" ]||continue;$DRY||safe_cp "$f" "$DIR/agents/$(basename "$f")" "$(basename "$f")";done
@@ -171,10 +234,35 @@ done
 echo -e "${BOLD}📝 CLAUDE.md:${NC}"
 if [ -f "CLAUDE.md" ]; then
     lines=$(wc -l < "CLAUDE.md")
-    if [ "$lines" -gt 200 ]; then
-        warn "CLAUDE.md >200 lines — skipping append"
-    elif grep -q "ClaudeForge" "CLAUDE.md" 2>/dev/null; then
+    if grep -q "ClaudeForge" "CLAUDE.md" 2>/dev/null; then
         skip "CLAUDE.md"
+    elif [ "$lines" -gt 200 ]; then
+        # Large CLAUDE.md — don't append text, just add @import for preferences
+        # This adds ~1 line instead of 6, avoiding degradation
+        if ! grep -q "@./docs/preferences.md" "CLAUDE.md" 2>/dev/null; then
+            if ! $DRY; then
+                printf '\n@./docs/preferences.md\n' >> "CLAUDE.md"
+            fi
+            merg "CLAUDE.md (added @import only — file is $lines lines, kept lean)"
+        else
+            skip "CLAUDE.md (@import already present)"
+        fi
+        # Create the protocol as a separate rule file instead
+        if ! $DRY && [ ! -f "$DIR/rules/session-protocol.md" ]; then
+            cat > "$DIR/rules/session-protocol.md" << 'SPROTO'
+---
+name: session-protocol
+description: Session start/end protocol. Read handoff on start, checkpoint before compact.
+---
+
+## Session Protocol
+**Start:** Read status/handoff.md then docs/preferences.md.
+**Before /compact or /clear:** Run /checkpoint first.
+**End:** Run /handoff for next session continuity.
+SPROTO
+            ok "session-protocol rule (CLAUDE.md too large for append)"
+            manifest_add "$DIR/rules/session-protocol.md"
+        fi
     else
         if ! $DRY; then
             printf '\n# ClaudeForge Protocol\n- Session start: read status/handoff.md + docs/preferences.md\n- Before /compact or /clear: /checkpoint first\n- Grep before Read. No filler. Batch edits.\n@./docs/preferences.md\n' >> "CLAUDE.md"
